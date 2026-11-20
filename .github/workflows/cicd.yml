@@ -1,16 +1,36 @@
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+name: Java Kubernetes CI CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          version: latest
+          distribution: temurin
+          java-version: '21'
+          cache: maven
 
-      - name: Configure Kubernetes
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+      - name: Build and Test
+        run: mvn clean verify
 
-      - name: Deploy to Kubernetes
-        run: |
-          kubectl set image deployment/java-app \
-            java-container=${{ secrets.DOCKERHUB_USERNAME }}/githubactions-cicd:${{ github.sha }}
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-          kubectl rollout status deployment/java-app
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/githubactions-cicd:latest
